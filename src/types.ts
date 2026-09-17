@@ -78,11 +78,15 @@ export interface LtaCarParkRecord {
 
 export interface LtaFeedStatus {
   connected: boolean;
-  source: 'live_lta' | 'cache' | 'fallback';
+  source: 'live_lta' | 'cache' | 'fallback' | 'singapore_feed';
   total: number;
   lastUpdated: string | null;
   loading: boolean;
   error?: string | null;
+  activeQuery?: string;
+  requiredHeader?: string;
+  matchedCount?: number;
+  destinationLocation?: { lat: number; lng: number; development: string; area?: string };
 }
 
 

@@ -12,13 +12,20 @@ export const LtaConnectionModal: React.FC<LtaConnectionModalProps> = ({
   onClose,
   onRefresh
 }) => {
+  const [customKeyInput, setCustomKeyInput] = useState(() => {
+    return localStorage.getItem('lta_account_key') || '';
+  });
   const [testingPing, setTestingPing] = useState(false);
   const [diagResult, setDiagResult] = useState<any>(null);
+  const [savedSuccess, setSavedSuccess] = useState(false);
 
   const handleTestPing = async () => {
     setTestingPing(true);
     try {
-      const res = await fetch('/api/lta/diagnostics');
+      const url = customKeyInput.trim()
+        ? `/api/lta/diagnostics?key=${encodeURIComponent(customKeyInput.trim())}`
+        : '/api/lta/diagnostics';
+      const res = await fetch(url);
       const data = await res.json();
       setDiagResult(data);
     } catch (err: any) {
@@ -26,6 +33,18 @@ export const LtaConnectionModal: React.FC<LtaConnectionModalProps> = ({
     } finally {
       setTestingPing(false);
     }
+  };
+
+  const handleSaveKey = () => {
+    const key = customKeyInput.trim();
+    if (key) {
+      localStorage.setItem('lta_account_key', key);
+    } else {
+      localStorage.removeItem('lta_account_key');
+    }
+    setSavedSuccess(true);
+    setTimeout(() => setSavedSuccess(false), 2000);
+    onRefresh();
   };
 
   return (
@@ -154,7 +173,7 @@ export const LtaConnectionModal: React.FC<LtaConnectionModalProps> = ({
           </div>
 
           {/* Diagnostic Ping Test */}
-          <div className="bg-[#09101f] border border-[#25324d] rounded-xl p-3.5 space-y-2">
+          <div className="bg-[#09101f] border border-[#25324d] rounded-xl p-3.5 space-y-2.5">
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="text-xs font-bold text-[#F8FAFC]">
@@ -164,14 +183,33 @@ export const LtaConnectionModal: React.FC<LtaConnectionModalProps> = ({
                   Test the serverless proxy connection to Singapore DataMall
                 </p>
               </div>
-              <button
-                onClick={handleTestPing}
-                disabled={testingPing}
-                className="px-3 py-1.5 rounded-lg bg-[#2563eb] hover:bg-[#38bdf8] hover:text-[#0f172a] text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-1"
-              >
-                <span className="material-symbols-outlined text-[15px]">network_ping</span>
-                <span>{testingPing ? 'Pinging...' : 'Test Connection'}</span>
-              </button>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <input
+                type="text"
+                value={customKeyInput}
+                onChange={(e) => setCustomKeyInput(e.target.value)}
+                placeholder="Custom AccountKey (or leave blank for default)"
+                className="flex-1 px-3 py-1.5 rounded-lg bg-[#0b1326] border border-[#1e293b] text-xs text-[#F8FAFC] placeholder:text-[#64748B] focus:outline-none focus:border-[#38bdf8]"
+              />
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={handleTestPing}
+                  disabled={testingPing}
+                  className="px-3 py-1.5 rounded-lg bg-[#1e293b] hover:bg-[#334155] text-xs font-bold text-[#38bdf8] border border-[#38bdf8]/30 transition-all disabled:opacity-50 flex items-center gap-1 shrink-0"
+                >
+                  <span className="material-symbols-outlined text-[15px]">network_ping</span>
+                  <span>{testingPing ? 'Testing...' : 'Test Key'}</span>
+                </button>
+                <button
+                  onClick={handleSaveKey}
+                  className="px-3 py-1.5 rounded-lg bg-[#0284c7] hover:bg-[#38bdf8] hover:text-[#0f172a] text-xs font-bold transition-all flex items-center gap-1 shrink-0"
+                >
+                  <span className="material-symbols-outlined text-[15px]">check</span>
+                  <span>{savedSuccess ? 'Saved!' : 'Save & Apply'}</span>
+                </button>
+              </div>
             </div>
 
             {diagResult && (
@@ -185,7 +223,11 @@ export const LtaConnectionModal: React.FC<LtaConnectionModalProps> = ({
                         : 'text-[#f59e0b] font-bold'
                     }
                   >
-                    {diagResult.pingStatus} (HTTP {diagResult.httpCode})
+                    {diagResult.pingStatus === 'connected'
+                      ? 'Connected (HTTP 200)'
+                      : diagResult.pingStatus === 'unauthorized_key'
+                      ? 'HTTP 401: Key Not Activated'
+                      : `${diagResult.pingStatus} (HTTP ${diagResult.httpCode})`}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -193,13 +235,18 @@ export const LtaConnectionModal: React.FC<LtaConnectionModalProps> = ({
                   <span className="text-[#38bdf8] font-bold">{diagResult.pingLatencyMs} ms</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Active Key:</span>
+                  <span>Tested Key:</span>
                   <span className="text-[#e2e8f0]">{diagResult.maskedKey}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Scope:</span>
                   <span className="text-[#e2e8f0] text-right truncate max-w-[260px]">{diagResult.agencyScope}</span>
                 </div>
+                {diagResult.httpCode === 401 && (
+                  <div className="text-[10px] text-[#94a3b8] pt-1 border-t border-[#1e293b]/80 font-sans">
+                    💡 <span className="text-[#cbd5e1]">Live parking lots are currently streamed via GovTech Singapore public feed and baseline registry.</span> To connect directly to DataMall, provide an active AccountKey from <a href="https://datamall.lta.gov.sg" target="_blank" rel="noreferrer" className="text-[#38bdf8] underline">datamall.lta.gov.sg</a>.
+                  </div>
+                )}
               </div>
             )}
           </div>

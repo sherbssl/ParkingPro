@@ -104,19 +104,25 @@ export const MinimalistParkingList: React.FC<MinimalistParkingListProps> = ({
           onClick={onOpenLtaModal}
           className="px-3.5 py-1.5 bg-[#0d162b] border-b border-[#202e48] flex items-center justify-between text-[11px] text-[#94A3B8] cursor-pointer hover:bg-[#121f3a] transition-colors"
         >
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 truncate max-w-[280px]">
             <span
-              className={`w-1.5 h-1.5 rounded-full ${
+              className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                 ltaStatus.connected ? 'bg-[#10b981]' : 'bg-[#f59e0b]'
               }`}
             />
-            <span className="font-semibold text-[#cbd5e1]">LTA CarParkAvailabilityv2:</span>
-            <span className="text-[#38bdf8] font-mono">{ltaStatus.total} lots streamed</span>
+            <span className="font-semibold text-[#cbd5e1] truncate">
+              {destination ? `LTA DataMall: "${destination}"` : 'LTA CarParkAvailabilityv2:'}
+            </span>
+            <span className="text-[#38bdf8] font-mono text-[10px] shrink-0">
+              ({ltaStatus.total} lots)
+            </span>
           </div>
-          <span className="text-[10px] text-[#64748B] flex items-center gap-0.5 hover:text-[#38bdf8]">
-            <span>Feed Info</span>
+          <div className="flex items-center gap-1 shrink-0 text-[10px] text-[#64748B]">
+            <span className="font-mono text-[#38bdf8] bg-[#09101f] px-1 py-0.5 rounded border border-[#202e48] hidden sm:inline">
+              AccountKey
+            </span>
             <span className="material-symbols-outlined text-[12px]">chevron_right</span>
-          </span>
+          </div>
         </div>
       )}
 

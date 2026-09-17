@@ -1,5 +1,5 @@
 import React from 'react';
-import { ViewMode } from '../types';
+import { ViewMode, LtaFeedStatus } from '../types';
 
 interface DestinationRadiusControllerProps {
   destination: string;
@@ -18,6 +18,8 @@ interface DestinationRadiusControllerProps {
   setEvFastOnly: (ev: boolean) => void;
   onOpenExpenseExport: () => void;
   onLocateMe: () => void;
+  ltaStatus?: LtaFeedStatus;
+  onRefreshLta?: () => void;
 }
 
 const PRESET_DESTINATIONS = [
@@ -48,7 +50,9 @@ export const DestinationRadiusController: React.FC<DestinationRadiusControllerPr
   evFastOnly,
   setEvFastOnly,
   onOpenExpenseExport,
-  onLocateMe
+  onLocateMe,
+  ltaStatus,
+  onRefreshLta
 }) => {
   return (
     <div className="w-full bg-[#11192e] border-b border-[#25324d] px-4 py-3.5 md:px-6 shadow-xl transition-all">
@@ -56,33 +60,69 @@ export const DestinationRadiusController: React.FC<DestinationRadiusControllerPr
         {/* Main Bar: Destination Input & View Mode Toggles */}
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 justify-between">
           {/* Destination Input Box */}
-          <div className="relative flex-1">
-            <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[#f43f5e] text-[22px] pointer-events-none">
-              location_on
-            </span>
-            <input
-              type="text"
-              value={destination}
-              onChange={(e) => setDestination(e.target.value)}
-              placeholder="Key in destination (e.g. Marina Bay Sands, Raffles Place, Suntec City...)"
-              className="w-full bg-[#09101f] border border-[#2d3a56] focus:border-[#38bdf8] rounded-xl pl-11 pr-24 py-2.5 text-sm text-[#F8FAFC] placeholder-[#64748B] outline-none transition-all shadow-inner font-medium"
-            />
-            {destination && (
+          <div className="flex-1 flex flex-col gap-1">
+            <div className="relative">
+              <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[#f43f5e] text-[22px] pointer-events-none">
+                location_on
+              </span>
+              <input
+                type="text"
+                value={destination}
+                onChange={(e) => setDestination(e.target.value)}
+                placeholder="Key in destination (e.g. Marina Bay Sands, Raffles Place, Suntec City...)"
+                className="w-full bg-[#09101f] border border-[#2d3a56] focus:border-[#38bdf8] rounded-xl pl-11 pr-24 py-2.5 text-sm text-[#F8FAFC] placeholder-[#64748B] outline-none transition-all shadow-inner font-medium"
+              />
+              {ltaStatus?.loading ? (
+                <div className="absolute right-12 top-1/2 -translate-y-1/2 flex items-center gap-1.5 px-2 py-1 rounded bg-[#1e293b]/90 border border-[#38bdf8]/40">
+                  <span className="w-2.5 h-2.5 rounded-full border-2 border-[#38bdf8] border-t-transparent animate-spin"></span>
+                  <span className="text-[10px] text-[#38bdf8] font-bold">Querying DataMall...</span>
+                </div>
+              ) : destination ? (
+                <button
+                  onClick={() => setDestination('')}
+                  className="absolute right-12 top-1/2 -translate-y-1/2 text-[#94A3B8] hover:text-[#F8FAFC] p-1 rounded-md transition-colors"
+                  title="Clear destination"
+                >
+                  <span className="material-symbols-outlined text-[18px]">close</span>
+                </button>
+              ) : null}
               <button
-                onClick={() => setDestination('')}
-                className="absolute right-12 top-1/2 -translate-y-1/2 text-[#94A3B8] hover:text-[#F8FAFC] p-1 rounded-md transition-colors"
-                title="Clear destination"
+                onClick={onLocateMe}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg bg-[#1e293b] hover:bg-[#334155] text-[#38bdf8] transition-colors"
+                title="Use my current GPS location"
               >
-                <span className="material-symbols-outlined text-[18px]">close</span>
+                <span className="material-symbols-outlined text-[18px]">my_location</span>
               </button>
-            )}
-            <button
-              onClick={onLocateMe}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg bg-[#1e293b] hover:bg-[#334155] text-[#38bdf8] transition-colors"
-              title="Use my current GPS location"
-            >
-              <span className="material-symbols-outlined text-[18px]">my_location</span>
-            </button>
+            </div>
+
+            {/* LTA DataMall Query Stream Indicator */}
+            <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px] text-[#94a3b8] px-1 font-sans">
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse"></span>
+                <span>
+                  Destination query pulls from <strong>LTA DataMall CarParkAvailabilityv2 API</strong>
+                </span>
+                {ltaStatus?.matchedCount !== undefined && destination.trim() && (
+                  <span className="text-[#38bdf8] font-semibold bg-[#0369a1]/20 px-1.5 py-0.2 rounded border border-[#0284c7]/30">
+                    {ltaStatus.matchedCount} lots matching
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="font-mono text-[9.5px] text-[#38bdf8] bg-[#09101f] px-1.5 py-0.5 rounded border border-[#2d3a56]">
+                  Header: AccountKey: &lt;LTA_ACCOUNT_KEY&gt;
+                </span>
+                {onRefreshLta && (
+                  <button
+                    onClick={onRefreshLta}
+                    title="Force fetch latest lots from LTA DataMall"
+                    className="text-[#94a3b8] hover:text-[#38bdf8] p-0.5"
+                  >
+                    <span className="material-symbols-outlined text-[13px]">sync</span>
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Quick Landmark Chips */}

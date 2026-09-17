@@ -75,10 +75,21 @@ export default function App() {
   }, []);
 
   // Fetch live lots from serverless LTA DataMall endpoint
-  const fetchLtaFeed = useCallback(async (forceRefresh = false) => {
+  const fetchLtaFeed = useCallback(async (query = '', forceRefresh = false) => {
     setLtaStatus((prev) => ({ ...prev, loading: true }));
     try {
-      const res = await fetch(`/api/lta/carparks${forceRefresh ? '?refresh=true' : ''}`);
+      const qParam = query.trim() ? `query=${encodeURIComponent(query.trim())}` : '';
+      const refreshParam = forceRefresh ? 'refresh=true' : '';
+      const params = [qParam, refreshParam].filter(Boolean).join('&');
+      const url = `/api/lta/carparks${params ? `?${params}` : ''}`;
+
+      const customKey = localStorage.getItem('lta_account_key') || '';
+      const headers: Record<string, string> = {};
+      if (customKey) {
+        headers['x-lta-account-key'] = customKey;
+      }
+
+      const res = await fetch(url, { headers });
       const data = await res.json();
       if (data.value && Array.isArray(data.value)) {
         setLtaRecords(data.value);
@@ -88,10 +99,27 @@ export default function App() {
           total: data.total || data.value.length,
           lastUpdated: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
           loading: false,
-          error: data.warning || null
+          error: data.warning || null,
+          activeQuery: data.query || query,
+          requiredHeader: 'AccountKey: <LTA_ACCOUNT_KEY>',
+          matchedCount: data.matchedCount,
+          destinationLocation: data.destinationLocation
         });
+
+        // If LTA DataMall CarParkAvailabilityv2 returned geographical coordinates for destination
+        if (data.destinationLocation) {
+          const { lat, lng } = data.destinationLocation;
+          // Map Singapore coordinates (approx 103.82 - 103.87, 1.27 - 1.31) to 1000x700 SVG canvas
+          const normX = Math.min(1, Math.max(0, (lng - 103.82) / (103.875 - 103.82)));
+          const normY = Math.min(1, Math.max(0, (1.31 - lat) / (1.31 - 1.27)));
+          setCustomCoord({
+            x: Math.round(160 + normX * 680),
+            y: Math.round(90 + normY * 480)
+          });
+        }
+
         if (forceRefresh) {
-          showToast(`Synced ${data.value.length} car parks from LTA DataMall (HDB, LTA & URA)`);
+          showToast(`Synced ${data.value.length} car parks from LTA DataMall${query ? ` for "${query}"` : ''}`);
         }
       } else {
         setLtaStatus((prev) => ({ ...prev, loading: false, error: 'Empty response' }));
@@ -107,12 +135,21 @@ export default function App() {
 
   // Initial load & periodic poll of LTA DataMall feed
   useEffect(() => {
-    fetchLtaFeed();
+    fetchLtaFeed(destination);
     const timer = setInterval(() => {
-      fetchLtaFeed();
+      fetchLtaFeed(destination);
     }, 60000);
     return () => clearInterval(timer);
-  }, [fetchLtaFeed]);
+  }, [fetchLtaFeed, destination]);
+
+  // When user keys in a query into the search function, debounced fetch from LTA DataMall
+  useEffect(() => {
+    if (!destination) return;
+    const handler = setTimeout(() => {
+      fetchLtaFeed(destination);
+    }, 400);
+    return () => clearTimeout(handler);
+  }, [destination, fetchLtaFeed]);
 
   // Merge LTA DataMall live lots into base PARKING_FACILITIES
   const mergedFacilities = useMemo(() => {
@@ -384,7 +421,7 @@ export default function App() {
         onReset={handleReset}
         ltaStatus={ltaStatus}
         onOpenLtaModal={() => setShowLtaModal(true)}
-        onRefreshLta={() => fetchLtaFeed(true)}
+        onRefreshLta={() => fetchLtaFeed(destination, true)}
       />
 
       {/* 2. Destination Input, View Switcher & 0-2000m Radius Controller */}
@@ -405,6 +442,8 @@ export default function App() {
         setEvFastOnly={setEvFastOnly}
         onOpenExpenseExport={() => setShowExpenseModal(true)}
         onLocateMe={handleLocateMe}
+        ltaStatus={ltaStatus}
+        onRefreshLta={() => fetchLtaFeed(destination, true)}
       />
 
       {/* 3. Main Body: Split View / Map View / List View */}
