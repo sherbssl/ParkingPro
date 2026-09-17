@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
-import { ParkingFacility, SortCategory, ViewMode } from './types';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { ParkingFacility, SortCategory, ViewMode, LtaCarParkRecord, LtaFeedStatus } from './types';
 import { PARKING_FACILITIES } from './data/parkingData';
 import { Header } from './components/Header';
 import { DestinationRadiusController } from './components/DestinationRadiusController';
@@ -13,6 +13,7 @@ import { InteractiveMap } from './components/InteractiveMap';
 import { NavigationModal } from './components/NavigationModal';
 import { ProReservationModal } from './components/ProReservationModal';
 import { ProExpenseReportModal } from './components/ProExpenseReportModal';
+import { LtaConnectionModal } from './components/LtaConnectionModal';
 
 // Landmark coordinate lookup on SVG canvas (1000x700)
 const LANDMARK_COORDS: Record<string, { x: number; y: number; label: string }> = {
@@ -49,17 +50,194 @@ export default function App() {
   const [navigationFacility, setNavigationFacility] = useState<ParkingFacility | null>(null);
   const [reservationFacility, setReservationFacility] = useState<ParkingFacility | null>(null);
   const [showExpenseModal, setShowExpenseModal] = useState<boolean>(false);
+  const [showLtaModal, setShowLtaModal] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // LTA DataMall Serverless Stream State
+  const [ltaRecords, setLtaRecords] = useState<LtaCarParkRecord[]>([]);
+  const [ltaStatus, setLtaStatus] = useState<LtaFeedStatus>({
+    connected: false,
+    source: 'cache',
+    total: 0,
+    lastUpdated: null,
+    loading: false,
+    error: null
+  });
 
   // Custom coordinate override when user clicks map
   const [customCoord, setCustomCoord] = useState<{ x: number; y: number } | null>(null);
 
-  const showToast = (msg: string) => {
+  const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
       setToastMessage(null);
     }, 2800);
-  };
+  }, []);
+
+  // Fetch live lots from serverless LTA DataMall endpoint
+  const fetchLtaFeed = useCallback(async (forceRefresh = false) => {
+    setLtaStatus((prev) => ({ ...prev, loading: true }));
+    try {
+      const res = await fetch(`/api/lta/carparks${forceRefresh ? '?refresh=true' : ''}`);
+      const data = await res.json();
+      if (data.value && Array.isArray(data.value)) {
+        setLtaRecords(data.value);
+        setLtaStatus({
+          connected: true,
+          source: data.source || 'live_lta',
+          total: data.total || data.value.length,
+          lastUpdated: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          loading: false,
+          error: data.warning || null
+        });
+        if (forceRefresh) {
+          showToast(`Synced ${data.value.length} car parks from LTA DataMall (HDB, LTA & URA)`);
+        }
+      } else {
+        setLtaStatus((prev) => ({ ...prev, loading: false, error: 'Empty response' }));
+      }
+    } catch (err: any) {
+      setLtaStatus((prev) => ({
+        ...prev,
+        loading: false,
+        error: err.message
+      }));
+    }
+  }, [showToast]);
+
+  // Initial load & periodic poll of LTA DataMall feed
+  useEffect(() => {
+    fetchLtaFeed();
+    const timer = setInterval(() => {
+      fetchLtaFeed();
+    }, 60000);
+    return () => clearInterval(timer);
+  }, [fetchLtaFeed]);
+
+  // Merge LTA DataMall live lots into base PARKING_FACILITIES
+  const mergedFacilities = useMemo(() => {
+    if (!ltaRecords || ltaRecords.length === 0) {
+      return PARKING_FACILITIES;
+    }
+
+    const ltaMap = new Map<string, LtaCarParkRecord>();
+    ltaRecords.forEach((rec) => {
+      if (rec.Development) {
+        ltaMap.set(rec.Development.toLowerCase().trim(), rec);
+        const cleanName = rec.Development.toLowerCase().replace(/[^a-z0-9]/g, '');
+        ltaMap.set(cleanName, rec);
+      }
+    });
+
+    const updatedBase = PARKING_FACILITIES.map((fac) => {
+      const facNameLower = fac.name.toLowerCase();
+      const facClean = facNameLower.replace(/[^a-z0-9]/g, '');
+
+      let matched: LtaCarParkRecord | undefined;
+      for (const [key, rec] of ltaMap.entries()) {
+        if (
+          facNameLower.includes(key) ||
+          key.includes(facNameLower) ||
+          facClean.includes(key) ||
+          key.includes(facClean)
+        ) {
+          matched = rec;
+          break;
+        }
+      }
+
+      if (matched) {
+        const availableLots = matched.AvailableLots;
+        const status =
+          availableLots < 15 ? 'limited' : availableLots < 40 ? 'filling_fast' : 'available';
+        return {
+          ...fac,
+          availableLots,
+          status,
+          agency: matched.Agency
+        };
+      }
+
+      return fac;
+    });
+
+    // Also include additional HDB & URA car parks from the LTA feed
+    const additionalFacilities: ParkingFacility[] = [];
+    const usedIds = new Set(updatedBase.map((f) => f.id));
+
+    ltaRecords.forEach((rec, idx) => {
+      const isAlreadyIncluded = updatedBase.some(
+        (f) =>
+          f.name.toLowerCase().includes(rec.Development.toLowerCase()) ||
+          rec.Development.toLowerCase().includes(f.name.toLowerCase())
+      );
+
+      if (!isAlreadyIncluded && (rec.Agency === 'HDB' || rec.Agency === 'URA')) {
+        let coords = { x: 260 + ((idx * 37) % 350), y: 320 + ((idx * 29) % 240) };
+        if (rec.Location) {
+          const parts = rec.Location.split(' ');
+          if (parts.length === 2) {
+            const lat = parseFloat(parts[0]);
+            const lng = parseFloat(parts[1]);
+            if (!isNaN(lat) && !isNaN(lng)) {
+              const normX = Math.min(1, Math.max(0, (lng - 103.84) / (103.87 - 103.84)));
+              const normY = Math.min(1, Math.max(0, (1.305 - lat) / (1.305 - 1.27)));
+              coords = {
+                x: Math.round(180 + normX * 640),
+                y: Math.round(100 + normY * 460)
+              };
+            }
+          }
+        }
+
+        const id = `lta-${rec.Agency.toLowerCase()}-${rec.CarParkID || idx}`;
+        if (!usedIds.has(id)) {
+          usedIds.add(id);
+          const availableLots = rec.AvailableLots;
+          const status =
+            availableLots < 15 ? 'limited' : availableLots < 40 ? 'filling_fast' : 'available';
+          const isHdb = rec.Agency === 'HDB';
+
+          additionalFacilities.push({
+            id,
+            name: rec.Development,
+            address: `${rec.Area || 'Central'}, Singapore`,
+            subTitle: `${rec.Agency} Public Facility • Code: ${rec.CarParkID}`,
+            type: isHdb ? 'building' : 'street',
+            walkMeters: 480,
+            walkMinutes: 6,
+            availableLots,
+            totalLots: Math.max(availableLots, isHdb ? 180 : 60),
+            status,
+            imageUrl: isHdb
+              ? 'https://images.unsplash.com/photo-1590674899484-d5640e854abe?auto=format&fit=crop&w=600&q=80'
+              : 'https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=600&q=80',
+            isIndoor: isHdb,
+            heightLimit: isHdb ? '2.15m' : undefined,
+            hasCctv: true,
+            hasValet: false,
+            tariff: {
+              peakDayRate: isHdb ? '$0.60 / 30 mins' : '$1.20 / 30 mins',
+              offPeakRate: isHdb ? '$0.60 / 30 mins' : '$1.20 / 30 mins',
+              eveningRate: isHdb ? '$5.00 night cap' : '$0.60 / 30 mins',
+              weekendRate: isHdb ? 'Free Sun 07:00-22:30' : '$1.20 / 30 mins',
+              gracePeriodMins: 10,
+              heightLimitM: isHdb ? 2.15 : 4.0,
+              ratePerHalfHourDay: isHdb ? 0.60 : 1.20,
+              ratePerHalfHourEvening: isHdb ? 0.60 : 0.60
+            },
+            mapPinId: id,
+            coords,
+            features: [rec.Agency, 'Electronic Parking System (EPS)', 'Grace Period 10m'],
+            agency: rec.Agency,
+            forecastProbability: Math.min(95, Math.max(45, Math.round((availableLots / 100) * 80 + 20)))
+          });
+        }
+      }
+    });
+
+    return [...updatedBase, ...additionalFacilities];
+  }, [ltaRecords]);
 
   // Determine destination coordinates on canvas
   const destCoords = useMemo(() => {
@@ -88,7 +266,7 @@ export default function App() {
 
   // Recalculate relative distances based on destination coordinates
   const facilitiesWithDistances = useMemo(() => {
-    return PARKING_FACILITIES.map((fac) => {
+    return mergedFacilities.map((fac) => {
       // Euclidean distance in SVG coordinates converted to real meters
       const dx = fac.coords.x - destCoords.x;
       const dy = fac.coords.y - destCoords.y;
@@ -110,7 +288,7 @@ export default function App() {
         forecastProbability: adjustedProb
       };
     });
-  }, [destCoords, etaMinutes]);
+  }, [mergedFacilities, destCoords, etaMinutes]);
 
   // Filter facilities by radius & Pro filters (vehicle height & EV)
   const availableFacilities = useMemo(() => {
@@ -199,11 +377,14 @@ export default function App() {
 
   return (
     <div className="bg-[#0b1326] min-h-screen flex flex-col text-[#dae2fd] font-['Inter',sans-serif] selection:bg-[#38bdf8] selection:text-[#0f172a] overflow-hidden">
-      {/* 1. Header with Mode Switcher (Standard vs. PRO ⚡) */}
+      {/* 1. Header with Mode Switcher (Standard vs. PRO ⚡) & LTA Connection status */}
       <Header
         isProMode={isProMode}
         onTogglePro={handleTogglePro}
         onReset={handleReset}
+        ltaStatus={ltaStatus}
+        onOpenLtaModal={() => setShowLtaModal(true)}
+        onRefreshLta={() => fetchLtaFeed(true)}
       />
 
       {/* 2. Destination Input, View Switcher & 0-2000m Radius Controller */}
@@ -239,6 +420,8 @@ export default function App() {
             setSort={setSort}
             isProMode={isProMode}
             etaMinutes={etaMinutes}
+            ltaStatus={ltaStatus}
+            onOpenLtaModal={() => setShowLtaModal(true)}
             onSelectFacility={(fac) => setSelectedFacilityId(fac.id)}
             onNavigate={(fac) => setNavigationFacility(fac)}
             onExpandRadius={(meters) => setRadiusMeters(meters)}
@@ -289,6 +472,15 @@ export default function App() {
           facilities={availableFacilities}
           destination={destination}
           onClose={() => setShowExpenseModal(false)}
+        />
+      )}
+
+      {/* LTA DataMall Serverless Connection Diagnostics Modal */}
+      {showLtaModal && (
+        <LtaConnectionModal
+          status={ltaStatus}
+          onClose={() => setShowLtaModal(false)}
+          onRefresh={() => fetchLtaFeed(true)}
         />
       )}
 

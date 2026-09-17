@@ -42,6 +42,7 @@ export interface ParkingFacility {
   isCheapest?: boolean;
   isPopular?: boolean;
   features: string[];
+  agency?: 'LTA' | 'HDB' | 'URA';
   // Pro attributes
   forecastProbability?: number; // 0-100% confidence
   erpGantryToll?: number; // SGD dollars
@@ -63,6 +64,25 @@ export interface ProReservation {
   vehiclePlate: string;
   expiresInMins: number;
   bookingTime: string;
+}
+
+export interface LtaCarParkRecord {
+  CarParkID: string;
+  Area: string;
+  Development: string;
+  Location: string;
+  AvailableLots: number;
+  LotType: 'C' | 'H' | 'Y';
+  Agency: 'LTA' | 'HDB' | 'URA';
+}
+
+export interface LtaFeedStatus {
+  connected: boolean;
+  source: 'live_lta' | 'cache' | 'fallback';
+  total: number;
+  lastUpdated: string | null;
+  loading: boolean;
+  error?: string | null;
 }
 
 

@@ -1,7 +1,10 @@
 {
   "name": "ParkPulse",
-  "description": "Minimalist Singapore parking locator. Key in your destination and adjust the search radius between 0 and 2000m to discover real-time available car parks and live bays.",
-  "requestFramePermissions": ["geolocation"],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "description": "Minimalist Singapore parking locator. Key in your destination, adjust search radius between 0 and 2000m, and discover live car park lots across HDB, LTA, and URA facilities.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
-

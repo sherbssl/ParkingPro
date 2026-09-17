@@ -1,5 +1,5 @@
 import React from 'react';
-import { ParkingFacility, SortCategory } from '../types';
+import { ParkingFacility, SortCategory, LtaFeedStatus } from '../types';
 
 interface MinimalistParkingListProps {
   facilities: ParkingFacility[];
@@ -10,6 +10,8 @@ interface MinimalistParkingListProps {
   setSort: (sort: SortCategory) => void;
   isProMode: boolean;
   etaMinutes: number;
+  ltaStatus?: LtaFeedStatus;
+  onOpenLtaModal?: () => void;
   onSelectFacility: (facility: ParkingFacility) => void;
   onNavigate: (facility: ParkingFacility) => void;
   onExpandRadius: (meters: number) => void;
@@ -25,6 +27,8 @@ export const MinimalistParkingList: React.FC<MinimalistParkingListProps> = ({
   setSort,
   isProMode,
   etaMinutes,
+  ltaStatus,
+  onOpenLtaModal,
   onSelectFacility,
   onNavigate,
   onExpandRadius,
@@ -94,6 +98,28 @@ export const MinimalistParkingList: React.FC<MinimalistParkingListProps> = ({
         </div>
       </div>
 
+      {/* LTA DataMall Live Feed Banner */}
+      {ltaStatus && (
+        <div
+          onClick={onOpenLtaModal}
+          className="px-3.5 py-1.5 bg-[#0d162b] border-b border-[#202e48] flex items-center justify-between text-[11px] text-[#94A3B8] cursor-pointer hover:bg-[#121f3a] transition-colors"
+        >
+          <div className="flex items-center gap-1.5">
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                ltaStatus.connected ? 'bg-[#10b981]' : 'bg-[#f59e0b]'
+              }`}
+            />
+            <span className="font-semibold text-[#cbd5e1]">LTA CarParkAvailabilityv2:</span>
+            <span className="text-[#38bdf8] font-mono">{ltaStatus.total} lots streamed</span>
+          </div>
+          <span className="text-[10px] text-[#64748B] flex items-center gap-0.5 hover:text-[#38bdf8]">
+            <span>Feed Info</span>
+            <span className="material-symbols-outlined text-[12px]">chevron_right</span>
+          </span>
+        </div>
+      )}
+
       {/* Facilities List Container */}
       <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2.5">
         {facilities.length === 0 ? (
@@ -144,7 +170,7 @@ export const MinimalistParkingList: React.FC<MinimalistParkingListProps> = ({
                     : 'bg-[#10192d] hover:bg-[#15223c] border-[#25324d]/80'
                 }`}
               >
-                {/* Top: Distance + Available Lots + Pro Probability */}
+                {/* Top: Distance + Agency Badge + Available Lots + Pro Probability */}
                 <div className="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
                   <div className="flex items-center gap-1.5">
                     <span className="px-2 py-0.5 rounded-md bg-[#38bdf8]/15 text-[#38bdf8] font-bold text-[11px] border border-[#38bdf8]/30">
@@ -153,6 +179,17 @@ export const MinimalistParkingList: React.FC<MinimalistParkingListProps> = ({
                     <span className="text-[11px] text-[#94A3B8]">
                       • {fac.walkMinutes} min walk
                     </span>
+                    {fac.agency && (
+                      <span className={`px-1.5 py-0.2 rounded text-[10px] font-extrabold border ${
+                        fac.agency === 'HDB'
+                          ? 'bg-purple-500/15 text-purple-300 border-purple-500/30'
+                          : fac.agency === 'URA'
+                          ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                          : 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30'
+                      }`}>
+                        {fac.agency}
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-1.5">

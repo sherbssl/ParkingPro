@@ -1,16 +1,27 @@
 import React from 'react';
+import { LtaFeedStatus } from '../types';
 
 interface HeaderProps {
   isProMode: boolean;
   onTogglePro: () => void;
   onReset: () => void;
+  ltaStatus: LtaFeedStatus;
+  onOpenLtaModal: () => void;
+  onRefreshLta: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ isProMode, onTogglePro, onReset }) => {
+export const Header: React.FC<HeaderProps> = ({
+  isProMode,
+  onTogglePro,
+  onReset,
+  ltaStatus,
+  onOpenLtaModal,
+  onRefreshLta
+}) => {
   return (
-    <header className="w-full h-14 bg-[#091122] border-b border-[#25324d] px-4 md:px-8 flex items-center justify-between z-30 select-none">
+    <header className="w-full h-14 bg-[#091122] border-b border-[#25324d] px-3 md:px-6 flex items-center justify-between z-30 select-none">
       {/* Brand */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
         <button
           onClick={onReset}
           className="flex items-center gap-2 group text-left"
@@ -26,21 +37,50 @@ export const Header: React.FC<HeaderProps> = ({ isProMode, onTogglePro, onReset 
           </span>
         </button>
 
-        {isProMode ? (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500/20 to-amber-600/30 border border-amber-500/50 text-[11px] text-amber-300 font-extrabold shadow-sm animate-pulse">
-            <span className="material-symbols-outlined text-[13px]">bolt</span>
-            <span>PRO VERSION ACTIVE</span>
+        {/* LTA DataMall Connection Status Pill */}
+        <button
+          onClick={onOpenLtaModal}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#0b162b] border border-[#23385d] hover:border-[#38bdf8] text-[11px] text-[#94A3B8] hover:text-[#F8FAFC] transition-all group shadow-sm"
+          title="Inspect LTA, HDB & URA DataMall CarParkAvailabilityv2 feed"
+        >
+          <span
+            className={`w-2 h-2 rounded-full ${
+              ltaStatus.connected ? 'bg-[#10b981] animate-pulse' : 'bg-[#f59e0b]'
+            }`}
+          />
+          <span className="font-semibold text-[#38bdf8] hidden sm:inline">LTA DataMall</span>
+          <span className="text-[#64748B] hidden md:inline">• HDB, LTA & URA</span>
+          <span className="material-symbols-outlined text-[14px] text-[#64748B] group-hover:text-[#38bdf8] transition-colors">
+            info
           </span>
-        ) : (
-          <span className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#1e293b] border border-[#334155] text-[11px] text-[#94A3B8]">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse"></span>
-            Singapore Live Parking
+        </button>
+
+        {isProMode && (
+          <span className="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500/20 to-amber-600/30 border border-amber-500/50 text-[11px] text-amber-300 font-extrabold shadow-sm animate-pulse">
+            <span className="material-symbols-outlined text-[13px]">bolt</span>
+            <span>PRO ACTIVE</span>
           </span>
         )}
       </div>
 
       {/* Mode Switcher & Actions */}
       <div className="flex items-center gap-2 sm:gap-3">
+        {/* Quick Sync LTA Button */}
+        <button
+          onClick={onRefreshLta}
+          disabled={ltaStatus.loading}
+          className="p-1.5 rounded-lg bg-[#1e293b] hover:bg-[#283548] text-[#38bdf8] border border-[#334155]/60 transition-all flex items-center justify-center disabled:opacity-50"
+          title="Refresh live car park lots from LTA DataMall"
+        >
+          <span
+            className={`material-symbols-outlined text-[16px] ${
+              ltaStatus.loading ? 'animate-spin' : ''
+            }`}
+          >
+            refresh
+          </span>
+        </button>
+
         {/* Pro Mode Switcher Toggle */}
         <div className="flex items-center p-0.5 bg-[#09101f] rounded-xl border border-[#2d3a56]">
           <button
