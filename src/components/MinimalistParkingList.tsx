@@ -196,6 +196,11 @@ export const MinimalistParkingList: React.FC<MinimalistParkingListProps> = ({
                         {fac.agency}
                       </span>
                     )}
+                    {fac.category && (
+                      <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-[#2563EB]/20 text-[#93ccff] border border-[#2563EB]/30 truncate max-w-[110px]">
+                        {fac.category}
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-1.5">

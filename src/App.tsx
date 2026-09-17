@@ -6,6 +6,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { ParkingFacility, SortCategory, ViewMode, LtaCarParkRecord, LtaFeedStatus } from './types';
 import { PARKING_FACILITIES } from './data/parkingData';
+import { findCarparkRate, extractTariffEstimates } from './data/carparkRatesCsvData';
 import { Header } from './components/Header';
 import { DestinationRadiusController } from './components/DestinationRadiusController';
 import { MinimalistParkingList } from './components/MinimalistParkingList';
@@ -183,6 +184,32 @@ export default function App() {
         }
       }
 
+      // Check CSV rate dataset
+      const csvRate = findCarparkRate(fac.name);
+      let enhancedTariff = fac.tariff;
+      let enhancedCategory = fac.category;
+
+      if (csvRate) {
+        const est = extractTariffEstimates(csvRate);
+        enhancedCategory = csvRate.category;
+        enhancedTariff = {
+          ...fac.tariff,
+          weekdaysRate1: csvRate.weekdays_rate_1,
+          weekdaysRate2: csvRate.weekdays_rate_2,
+          saturdayRate: csvRate.saturday_rate,
+          sundayPublicHolidayRate: csvRate.sunday_publicholiday_rate,
+          category: csvRate.category,
+          peakDayRate: csvRate.weekdays_rate_1,
+          offPeakRate: csvRate.weekdays_rate_2 && csvRate.weekdays_rate_2 !== '-' ? csvRate.weekdays_rate_2 : csvRate.weekdays_rate_1,
+          eveningRate: csvRate.weekdays_rate_2 && csvRate.weekdays_rate_2 !== '-' ? csvRate.weekdays_rate_2 : csvRate.weekdays_rate_1,
+          weekendRate: csvRate.saturday_rate && csvRate.saturday_rate !== '-' ? csvRate.saturday_rate : csvRate.weekdays_rate_1,
+          ratePerHalfHourDay: est.ratePerHalfHourDay,
+          ratePerHalfHourEvening: est.ratePerHalfHourEvening,
+          ...(est.firstHourRate ? { firstHourRate: est.firstHourRate } : {}),
+          ...(est.subsequentHalfHourRate ? { subsequentHalfHourRate: est.subsequentHalfHourRate } : {})
+        };
+      }
+
       if (matched) {
         const availableLots = matched.AvailableLots;
         const status =
@@ -191,14 +218,20 @@ export default function App() {
           ...fac,
           availableLots,
           status,
-          agency: matched.Agency
+          agency: matched.Agency,
+          category: enhancedCategory,
+          tariff: enhancedTariff
         };
       }
 
-      return fac;
+      return {
+        ...fac,
+        category: enhancedCategory,
+        tariff: enhancedTariff
+      };
     });
 
-    // Also include additional HDB & URA car parks from the LTA feed
+    // Also include additional car parks from the LTA feed (LTA, HDB, URA)
     const additionalFacilities: ParkingFacility[] = [];
     const usedIds = new Set(updatedBase.map((f) => f.id));
 
@@ -209,7 +242,7 @@ export default function App() {
           rec.Development.toLowerCase().includes(f.name.toLowerCase())
       );
 
-      if (!isAlreadyIncluded && (rec.Agency === 'HDB' || rec.Agency === 'URA')) {
+      if (!isAlreadyIncluded) {
         let coords = { x: 260 + ((idx * 37) % 350), y: 320 + ((idx * 29) % 240) };
         if (rec.Location) {
           const parts = rec.Location.split(' ');
@@ -235,11 +268,24 @@ export default function App() {
             availableLots < 15 ? 'limited' : availableLots < 40 ? 'filling_fast' : 'available';
           const isHdb = rec.Agency === 'HDB';
 
+          // Match with CSV rates dataset
+          const csvMatch = findCarparkRate(rec.Development);
+          const est = csvMatch ? extractTariffEstimates(csvMatch) : null;
+
+          const peakDayRate = csvMatch ? csvMatch.weekdays_rate_1 : (isHdb ? '$0.60 / 30 mins' : '$1.20 / 30 mins');
+          const offPeakRate = csvMatch
+            ? (csvMatch.weekdays_rate_2 !== '-' ? csvMatch.weekdays_rate_2 : csvMatch.weekdays_rate_1)
+            : (isHdb ? '$0.60 / 30 mins' : '$1.20 / 30 mins');
+          const weekendRate = csvMatch
+            ? (csvMatch.saturday_rate !== '-' ? csvMatch.saturday_rate : csvMatch.weekdays_rate_1)
+            : (isHdb ? 'Free Sun 07:00-22:30' : '$1.20 / 30 mins');
+
           additionalFacilities.push({
             id,
             name: rec.Development,
             address: `${rec.Area || 'Central'}, Singapore`,
             subTitle: `${rec.Agency} Public Facility • Code: ${rec.CarParkID}`,
+            category: csvMatch?.category || (isHdb ? 'HDB Residential' : 'Public URA/LTA'),
             type: isHdb ? 'building' : 'street',
             walkMeters: 480,
             walkMinutes: 6,
@@ -254,14 +300,21 @@ export default function App() {
             hasCctv: true,
             hasValet: false,
             tariff: {
-              peakDayRate: isHdb ? '$0.60 / 30 mins' : '$1.20 / 30 mins',
-              offPeakRate: isHdb ? '$0.60 / 30 mins' : '$1.20 / 30 mins',
-              eveningRate: isHdb ? '$5.00 night cap' : '$0.60 / 30 mins',
-              weekendRate: isHdb ? 'Free Sun 07:00-22:30' : '$1.20 / 30 mins',
+              peakDayRate,
+              offPeakRate,
+              eveningRate: offPeakRate,
+              weekendRate,
               gracePeriodMins: 10,
               heightLimitM: isHdb ? 2.15 : 4.0,
-              ratePerHalfHourDay: isHdb ? 0.60 : 1.20,
-              ratePerHalfHourEvening: isHdb ? 0.60 : 0.60
+              ratePerHalfHourDay: est ? est.ratePerHalfHourDay : (isHdb ? 0.60 : 1.20),
+              ratePerHalfHourEvening: est ? est.ratePerHalfHourEvening : (isHdb ? 0.60 : 0.60),
+              ...(est?.firstHourRate ? { firstHourRate: est.firstHourRate } : {}),
+              ...(est?.subsequentHalfHourRate ? { subsequentHalfHourRate: est.subsequentHalfHourRate } : {}),
+              weekdaysRate1: csvMatch?.weekdays_rate_1,
+              weekdaysRate2: csvMatch?.weekdays_rate_2,
+              saturdayRate: csvMatch?.saturday_rate,
+              sundayPublicHolidayRate: csvMatch?.sunday_publicholiday_rate,
+              category: csvMatch?.category
             },
             mapPinId: id,
             coords,

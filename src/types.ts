@@ -16,6 +16,11 @@ export interface TariffStructure {
   ratePerHalfHourEvening: number;
   firstHourRate?: number;
   subsequentHalfHourRate?: number;
+  weekdaysRate1?: string;
+  weekdaysRate2?: string;
+  saturdayRate?: string;
+  sundayPublicHolidayRate?: string;
+  category?: string;
 }
 
 export interface ParkingFacility {
@@ -23,6 +28,7 @@ export interface ParkingFacility {
   name: string;
   address: string;
   subTitle: string;
+  category?: string;
   type: 'building' | 'street' | 'ev';
   walkMeters: number;
   walkMinutes: number;

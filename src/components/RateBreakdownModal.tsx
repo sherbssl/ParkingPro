@@ -25,9 +25,16 @@ export const RateBreakdownModal: React.FC<RateBreakdownModalProps> = ({
         {/* Header */}
         <div className="flex items-start justify-between">
           <div>
-            <span className="text-[11px] font-bold text-[#93ccff] uppercase tracking-wider">
-              Official Tariff Breakdown & Policies
-            </span>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[11px] font-bold text-[#93ccff] uppercase tracking-wider">
+                Official Tariff Breakdown
+              </span>
+              {(facility.category || facility.tariff.category) && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#2563EB]/20 text-[#93ccff] border border-[#2563EB]/40">
+                  {facility.category || facility.tariff.category}
+                </span>
+              )}
+            </div>
             <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-lg font-bold text-[#F8FAFC]">
               {facility.name}
             </h3>
@@ -70,24 +77,48 @@ export const RateBreakdownModal: React.FC<RateBreakdownModalProps> = ({
 
         {/* Tariff Rules Table */}
         <div className="flex flex-col gap-2">
-          <span className="text-xs font-bold text-[#94A3B8] uppercase tracking-wider">
-            Schedule of Charges
-          </span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-[#94A3B8] uppercase tracking-wider">
+              Schedule of Charges (Updated Rates)
+            </span>
+            <span className="text-[10px] text-[#4edea3] font-medium flex items-center gap-1">
+              <span className="material-symbols-outlined text-[12px]">verified</span>
+              Verified Rates
+            </span>
+          </div>
           <div className="rounded-xl bg-[#131b2e] border border-[#3f4850]/30 divide-y divide-[#3f4850]/30 text-xs">
-            <div className="p-3 flex justify-between items-center">
-              <span className="text-[#dae2fd] font-medium">Monday - Friday (07:00 - 18:00)</span>
-              <span className="text-[#F8FAFC] font-semibold">{facility.tariff.peakDayRate}</span>
+            <div className="p-3 flex justify-between items-start gap-4">
+              <span className="text-[#dae2fd] font-medium min-w-[130px]">Weekdays (Day / 1st Period)</span>
+              <span className="text-[#F8FAFC] font-semibold text-right">
+                {facility.tariff.weekdaysRate1 || facility.tariff.peakDayRate}
+              </span>
+            </div>
+            <div className="p-3 flex justify-between items-start gap-4">
+              <span className="text-[#dae2fd] font-medium min-w-[130px]">Weekdays (Evening / 2nd Period)</span>
+              <span className="text-[#F8FAFC] font-semibold text-right">
+                {facility.tariff.weekdaysRate2 && facility.tariff.weekdaysRate2 !== '-'
+                  ? facility.tariff.weekdaysRate2
+                  : facility.tariff.offPeakRate}
+              </span>
+            </div>
+            <div className="p-3 flex justify-between items-start gap-4">
+              <span className="text-[#dae2fd] font-medium min-w-[130px]">Saturday Rate</span>
+              <span className="text-[#F8FAFC] font-semibold text-right">
+                {facility.tariff.saturdayRate && facility.tariff.saturdayRate !== '-'
+                  ? facility.tariff.saturdayRate
+                  : facility.tariff.weekendRate}
+              </span>
+            </div>
+            <div className="p-3 flex justify-between items-start gap-4">
+              <span className="text-[#dae2fd] font-medium min-w-[130px]">Sunday & Public Holidays</span>
+              <span className="text-[#F8FAFC] font-semibold text-right">
+                {facility.tariff.sundayPublicHolidayRate && facility.tariff.sundayPublicHolidayRate !== '-'
+                  ? facility.tariff.sundayPublicHolidayRate
+                  : facility.tariff.weekendRate}
+              </span>
             </div>
             <div className="p-3 flex justify-between items-center">
-              <span className="text-[#dae2fd] font-medium">Monday - Friday (After 18:00)</span>
-              <span className="text-[#F8FAFC] font-semibold">{facility.tariff.offPeakRate}</span>
-            </div>
-            <div className="p-3 flex justify-between items-center">
-              <span className="text-[#dae2fd] font-medium">Saturday, Sunday & Public Holidays</span>
-              <span className="text-[#F8FAFC] font-semibold">{facility.tariff.weekendRate}</span>
-            </div>
-            <div className="p-3 flex justify-between items-center">
-              <span className="text-[#dae2fd] font-medium">Grace Period for Drop-off / Pick-up</span>
+              <span className="text-[#dae2fd] font-medium">Grace Period</span>
               <span className="text-[#4edea3] font-semibold">
                 {facility.tariff.gracePeriodMins > 0
                   ? `${facility.tariff.gracePeriodMins} minutes complimentary`

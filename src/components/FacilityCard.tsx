@@ -173,13 +173,20 @@ export const FacilityCard: React.FC<FacilityCardProps> = ({
 
       {/* Rate Description & Calculated Cost Highlight */}
       <div className="flex items-end justify-between pt-1 bg-[#131b2e] p-2.5 rounded-lg border border-[#3f4850]/20">
-        <div className="flex flex-col">
-          <span className="text-[10px] text-[#94A3B8] font-medium">Standard Tariff Rate</span>
-          <span className="text-xs text-[#F8FAFC] font-semibold">
-            {facility.tariff.peakDayRate}
+        <div className="flex flex-col max-w-[65%]">
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <span className="text-[10px] text-[#94A3B8] font-medium">Updated Tariff</span>
+            {(facility.category || facility.tariff.category) && (
+              <span className="text-[9px] px-1.5 py-0.2 rounded bg-[#2563EB]/20 text-[#93ccff]">
+                {facility.category || facility.tariff.category}
+              </span>
+            )}
+          </div>
+          <span className="text-xs text-[#F8FAFC] font-semibold truncate" title={facility.tariff.weekdaysRate1 || facility.tariff.peakDayRate}>
+            {facility.tariff.weekdaysRate1 || facility.tariff.peakDayRate}
           </span>
-          <span className="text-[10px] text-[#94A3B8]">
-            {facility.tariff.offPeakRate}
+          <span className="text-[10px] text-[#94A3B8] truncate" title={facility.tariff.saturdayRate || facility.tariff.offPeakRate}>
+            {facility.tariff.saturdayRate ? `Sat: ${facility.tariff.saturdayRate}` : facility.tariff.offPeakRate}
           </span>
         </div>
         <div className="flex flex-col items-end">
